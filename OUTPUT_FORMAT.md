@@ -56,3 +56,24 @@ Delivery rules:
 <time> UNSUB <topic>
 <time> ALERT <topic> <message>
 ```
+
+Times print as `D<day> <hh:mm>`, starting at `D1 00:00`.
+
+| Command | Prints |
+| --- | --- |
+| `PUB`, `PRICE`, `TICK` | One `ALERT <time> <user> <topic> <message>` per delivery. A price alert's message is `price <new price>`. Alerts delivered at the same time print sorted by user name, then in publish order. |
+| `TICK <minutes>` | Its alerts, then `TIME <new time>` |
+| `INBOX <user> [n]` | Newest first: `<time> <topic> <message>` |
+| `HISTORY <user> [n]` | Oldest first: `<time> SUB <topic> [options as typed]`, `<time> UNSUB <topic>`, `<time> ALERT <topic> <message>` |
+
+Sorting by user name is only needed for printed output. Under `--quiet` nothing is printed, so it costs nothing in benchmarks.
+
+Example, the script from Project 2's "How input works", prints
+
+```
+ALERT D1 00:00 bob items/phones/pixel-10 price 579.00
+ALERT D1 08:00 alice news/sports/soccer Arsenal win 2-1
+TIME D1 08:00
+D1 08:00 news/sports/soccer Arsenal win 2-1
+D1 00:00 items/phones/pixel-10 price 579.00
+```
