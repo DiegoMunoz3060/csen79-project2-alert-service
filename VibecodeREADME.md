@@ -46,7 +46,7 @@ The planned CLI supports `--impl=main|alt`, `--quiet`, and a configurable inbox 
 
 > **Grading & Ownership Rule:** Every team member owns one graded deliverable (one hand-built data structure and its DDR, or the benchmark harness / test suite) and must be able to explain any structure in the project during the live Q&A.
 
-### 1. Structures Lead — `@Member_1_GitHub`
+### 1. Structures Lead — `@XXDNYUDWUW (Erich L)`
 
 **Primary Role:** Sets the class template interface, defines the instrumentation counter conventions, and reviews every structure.  
 **Graded Deliverable:** Core Structure 1 (Hierarchical Topic Tree/Trie) + DDR 1.
