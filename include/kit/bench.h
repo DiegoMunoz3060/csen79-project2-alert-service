@@ -21,7 +21,7 @@
 #include <string>
 #include <vector>
 
-#include "kit/counters.h"
+#include "counters.h"
 
 #ifndef KIT_BUILD_FLAGS
 #define KIT_BUILD_FLAGS "unknown"
