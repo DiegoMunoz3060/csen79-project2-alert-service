@@ -69,7 +69,7 @@ The planned CLI supports `--impl=main|alt`, `--quiet`, and a configurable inbox 
 
 ---
 
-### 2. App Lead — `@Member_2_GitHub`
+### 2. App Lead — `@Krishy2007 (Madhav Korimerla)`
 
 **Primary Role:** Builds the command parser, implements the alert delivery engine, and wires the `--impl=main|alt` swap flag.  
 **Graded Deliverable:** Core Structure 2 (Price Threshold / Scheduled Delivery Tree) + DDR 2.

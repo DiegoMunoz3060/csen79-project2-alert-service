@@ -186,13 +186,106 @@ TEST_CASE("main, alt, and stl implementations produce identical output on p2_dem
         "SUB u3 items/p below 850.00\n"
         "SUB u4 items/p below 850.00\n"
         "SUB u5 items/p below 700.00\n"
+        "SUB u1 news\n"
+        "SUB u1 news/sports at 08:00\n"
+        "SUB u2 news/sports\n"
+        "PUB news/sportscar Fast\n"
+        "PUB news/sports/soccer/finals Goal\n"
+        "UNSUB u2 news/sports\n"
+        "PUB news/sports/basketball Tipoff\n"
+        "TICK 480\n"
         "PRICE items/p 950.00\n"
         "PRICE items/p 820.00\n"
         "UNSUB u3 items/p\n"
         "PRICE items/p 860.00\n"
         "PRICE items/p 650.00\n"
+        "INBOX u1\n"
         "INBOX u4\n"
         "HISTORY u3\n"
         "STATS\n";
     run_all(storm);
+}
+
+TEST_CASE("invalid commands report errors without mutating state") {
+    const std::string script =
+        "FOO bar\n"
+        "SUB alice /leading\n"
+        "SUB alice trailing/\n"
+        "SUB alice bad//path\n"
+        "SUB alice news every 0\n"
+        "SUB alice news at 24:00\n"
+        "SUB alice items/p below -5.00\n"
+        "SUB alice items/p below 10.123\n"
+        "SUB alice news below 10 at 08:00\n"
+        "PUB news\n"
+        "PRICE items/p abc\n"
+        "TICK -10\n"
+        "UNSUB ghost news\n"
+        "INBOX ghost\n"
+        "HISTORY ghost\n"
+        "TICK 0\n";
+    team::MainAlertService svc(10, false);
+    std::istringstream in(script);
+    std::ostringstream out;
+    svc.run_stream(in, out);
+
+    const std::string expected =
+        "ERROR unknown command\n"
+        "ERROR bad command\n"
+        "ERROR bad command\n"
+        "ERROR bad command\n"
+        "ERROR bad command\n"
+        "ERROR bad command\n"
+        "ERROR bad command\n"
+        "ERROR bad command\n"
+        "ERROR bad command\n"
+        "ERROR bad command\n"
+        "ERROR bad command\n"
+        "ERROR bad command\n"
+        "ERROR not subscribed ghost news\n"
+        "END\n"
+        "END\n"
+        "TIME D0 00:00\n";
+    CHECK(out.str() == expected);
+    CHECK(svc.now_minutes() == 0);
+}
+
+TEST_CASE("scheduled boundary rules: at current time waits for tomorrow, same-minute ties, huge tick") {
+    const std::string script =
+        "TICK 480\n"
+        "SUB alice news at 08:00\n"
+        "SUB bob news every 2\n"
+        "SUB carol news every 2\n"
+        "PUB news first\n"
+        "TICK 120\n"
+        "PUB news after_fire\n"
+        "TICK 1440\n"
+        "INBOX bob 0\n"
+        "HISTORY bob 0\n"
+        "HISTORY bob 100\n";
+    team::MainAlertService svc(10, false);
+    std::istringstream in(script);
+    std::ostringstream out;
+    svc.run_stream(in, out);
+
+    const std::string expected =
+        "TIME D0 08:00\n"
+        "OK SUB alice news\n"
+        "OK SUB bob news\n"
+        "OK SUB carol news\n"
+        "ALERT D0 10:00 bob news first\n"
+        "ALERT D0 10:00 carol news first\n"
+        "TIME D0 10:00\n"
+        "ALERT D0 12:00 bob news after_fire\n"
+        "ALERT D0 12:00 carol news after_fire\n"
+        "ALERT D1 08:00 alice news first\n"
+        "ALERT D1 08:00 alice news after_fire\n"
+        "TIME D1 10:00\n"
+        "END\n"
+        "END\n"
+        "D0 08:00 SUB news every 2\n"
+        "D0 10:00 ALERT news first\n"
+        "D0 12:00 ALERT news after_fire\n"
+        "END\n";
+    CHECK(out.str() == expected);
 }

@@ -19,6 +19,7 @@
 #include "team/stl_price_threshold.h"
 #include "team/stl_scheduler.h"
 #include "team/stl_topic_store.h"
+#include "team/trie_topic_store.h"
 
 namespace team {
 
@@ -539,7 +540,7 @@ private:
 };
 
 using MainAlertService = AlertService<
-    StlTopicStore<std::uint64_t>,
+    TrieTopicStore<std::uint64_t>,
     PriceThresholdAVL<std::int64_t, std::uint64_t>,
     StlDeliveryScheduler,
     StlBoundedInbox<AlertRecord>>;
