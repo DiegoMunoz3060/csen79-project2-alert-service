@@ -1,7 +1,7 @@
 ## Project 2: alert service
 
-The simulated clock starts at day 0, 00:00, and only `TICK` moves it. Times print as
-`D<day> <HH:MM>`, for example `D0 08:00` or `D3 17:30`.
+The simulated clock starts at day 1, 00:00, and only `TICK` moves it. Times print as
+`D<day> <HH:MM>`, for example `D1 08:00` or `D3 17:30`.
 
 Topics are paths of words separated by `/`, such as `news/sports/soccer`. A subscription
 to a topic also covers every topic below it: `news` covers `news/sports/soccer`.
@@ -29,19 +29,17 @@ ALERT <time> <user> <item> price <new price> below <threshold>
 
 Delivery rules:
 
-- A user subscribed twice to the same topic gets `ERROR already subscribed <user> <topic>`.
+- A second subscription by the same user to the same topic replaces the first and discards its held publications.
   Combining `below` with `at` or `every` is `ERROR bad command`.
 - `PUB` reaches each user at most once. If several of a user's subscriptions cover the topic,
   the most specific one (the longest topic) decides whether the alert is sent now or held.
 - `below` subscriptions only react to `PRICE` on exactly that item, never to `PUB`.
-- A `PRICE` alerts a `below <t>` subscriber when the new price is less than t and the
-  previous price for that item was t or more. The first price ever seen for an item counts
-  as a drop from infinity. A subscriber is not alerted again until the price has gone back
-  up to t or more and dropped again.
+- A `PRICE` alerts a `below <t>` subscriber when the price drops strictly below t.
+  The subscription is removed after it fires; the user must subscribe again for another alert.
 - Order of ALERT lines for one `PUB`: by when the deciding subscription was made, oldest
   first. For one `PRICE`: by threshold, highest first, then by when the subscription was made.
 - During `TICK`, deliveries happen in time order; deliveries due at the same minute go in the
-  order their subscriptions were made. Each delivery prints its held publications in the
+  order they were scheduled. Each delivery prints its held publications in the
   order they were published, all stamped with the delivery time. A delivery with nothing
   held prints nothing.
 - A publication made at the same minute as a scheduled delivery that has already happened
@@ -55,25 +53,4 @@ Delivery rules:
 <time> SUB <topic> [below <price> | at <HH:MM> | every <hours>]   (as typed)
 <time> UNSUB <topic>
 <time> ALERT <topic> <message>
-```
-
-Times print as `D<day> <hh:mm>`, starting at `D1 00:00`.
-
-| Command | Prints |
-| --- | --- |
-| `PUB`, `PRICE`, `TICK` | One `ALERT <time> <user> <topic> <message>` per delivery. A price alert's message is `price <new price>`. Alerts delivered at the same time print sorted by user name, then in publish order. |
-| `TICK <minutes>` | Its alerts, then `TIME <new time>` |
-| `INBOX <user> [n]` | Newest first: `<time> <topic> <message>` |
-| `HISTORY <user> [n]` | Oldest first: `<time> SUB <topic> [options as typed]`, `<time> UNSUB <topic>`, `<time> ALERT <topic> <message>` |
-
-Sorting by user name is only needed for printed output. Under `--quiet` nothing is printed, so it costs nothing in benchmarks.
-
-Example, the script from Project 2's "How input works", prints
-
-```
-ALERT D1 00:00 bob items/phones/pixel-10 price 579.00
-ALERT D1 08:00 alice news/sports/soccer Arsenal win 2-1
-TIME D1 08:00
-D1 08:00 news/sports/soccer Arsenal win 2-1
-D1 00:00 items/phones/pixel-10 price 579.00
 ```

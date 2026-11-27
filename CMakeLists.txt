@@ -50,3 +50,4 @@ add_executable(gen_alerts tools/gen_alerts.cpp)
 
 enable_testing()
 add_test(NAME unit_tests COMMAND tests)
+set_tests_properties(unit_tests PROPERTIES WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")

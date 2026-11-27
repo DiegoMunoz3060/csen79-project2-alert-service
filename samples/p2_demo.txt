@@ -1,4 +1,4 @@
-# Project 2 sample script. The clock starts at D0 00:00.
+# Project 2 sample script. The clock starts at D1 00:00.
 SUB alice news/sports
 SUB bob news
 SUB bob news/sports/soccer

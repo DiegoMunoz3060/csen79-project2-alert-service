@@ -19,6 +19,7 @@ public:
     void add_subscription(const std::string& topic, const SubId& sub_id) {
         KIT_COUNT(stats_, visits);
         auto& vec = topics_[topic];
+        positions_[sub_id] = vec.size();
         vec.push_back(sub_id);
         ++total_subscribers_;
     }
@@ -31,19 +32,21 @@ public:
             return false;
         }
         auto& vec = it->second;
-        for (std::size_t i = 0; i < vec.size(); ++i) {
-            KIT_COUNT(stats_, visits);
-            if (vec[i] == sub_id) {
-                if (i + 1 < vec.size()) {
-                    vec[i] = vec.back();
-                    KIT_COUNT(stats_, moves);
-                }
-                vec.pop_back();
-                --total_subscribers_;
-                return true;
-            }
+        auto pos = positions_.find(sub_id);
+        KIT_COUNT(stats_, visits);
+        if (pos == positions_.end() || pos->second >= vec.size() || vec[pos->second] != sub_id) {
+            return false;
         }
-        return false;
+        std::size_t i = pos->second;
+        if (i + 1 < vec.size()) {
+            vec[i] = vec.back();
+            positions_[vec[i]] = i;
+            KIT_COUNT(stats_, moves);
+        }
+        vec.pop_back();
+        positions_.erase(pos);
+        --total_subscribers_;
+        return true;
     }
 
     // Calls visitor(prefix_depth, sub_id) for every direct subscriber at every
@@ -79,6 +82,7 @@ public:
 
 private:
     std::unordered_map<std::string, std::vector<SubId>> topics_;
+    std::unordered_map<SubId, std::size_t> positions_;
     std::size_t total_subscribers_ = 0;
     mutable kit::Counters stats_;
 };

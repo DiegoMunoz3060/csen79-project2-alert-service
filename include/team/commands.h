@@ -123,7 +123,7 @@ inline std::string format_time(std::int64_t total_minutes) {
     std::int64_t rem = total_minutes % 1440;
     std::int64_t hour = rem / 60;
     std::int64_t minute = rem % 60;
-    std::string s = "D" + std::to_string(day) + " ";
+    std::string s = "D" + std::to_string(day + 1) + " ";
     if (hour < 10) s.push_back('0');
     s += std::to_string(hour);
     s.push_back(':');

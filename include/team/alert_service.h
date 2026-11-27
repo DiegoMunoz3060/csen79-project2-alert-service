@@ -100,6 +100,7 @@ public:
         std::string line;
         while (std::getline(in, line)) {
             execute_line(line, out);
+            out.flush();
         }
     }
 
@@ -270,11 +271,17 @@ private:
     void handle_sub(const ParsedCommand& cmd, std::ostream& out) {
         std::size_t uid = get_or_create_user(cmd.user);
         auto& u = users_[uid];
-        if (u.active_subs.find(cmd.topic) != u.active_subs.end()) {
-            if (!quiet_) {
-                out << "ERROR already subscribed " << cmd.user << ' ' << cmd.topic << '\n';
+        auto existing = u.active_subs.find(cmd.topic);
+        if (existing != u.active_subs.end()) {
+            auto& old = subs_[existing->second];
+            old.active = false;
+            old.pending.clear();
+            if (old.mode == SubMode::Below) {
+                items_[old.topic].thresholds.erase(old.threshold, old.id);
+            } else {
+                topics_.remove_subscription(old.topic, old.id);
             }
-            return;
+            u.active_subs.erase(existing);
         }
 
         std::uint64_t sub_id = static_cast<std::uint64_t>(subs_.size());
@@ -413,15 +420,19 @@ private:
         std::int64_t new_price = cmd.int_val;
 
         if (new_price < old_price && !state.thresholds.empty()) {
+            std::vector<std::pair<std::int64_t, std::uint64_t>> triggered;
             state.thresholds.visit_crossed(
-                new_price, old_price, [&](std::int64_t threshold, std::uint64_t sub_id) {
-                    const auto& rec = subs_[sub_id];
-                    if (!rec.active) {
-                        return;
-                    }
-                    record_price_delivery(now_minutes_, rec.user_id, cmd.topic,
-                                          new_price, threshold, out);
+                new_price, std::numeric_limits<std::int64_t>::max(),
+                [&](std::int64_t threshold, std::uint64_t sub_id) {
+                    if (subs_[sub_id].active) triggered.emplace_back(threshold, sub_id);
                 });
+            for (const auto& [threshold, sub_id] : triggered) {
+                auto& rec = subs_[sub_id];
+                record_price_delivery(now_minutes_, rec.user_id, cmd.topic, new_price, threshold, out);
+                rec.active = false;
+                users_[rec.user_id].active_subs.erase(rec.topic);
+                state.thresholds.erase(threshold, sub_id);
+            }
         }
 
         state.has_price = true;
@@ -443,12 +454,7 @@ private:
                 }
                 rec.pending.clear();
             }
-            // Advance straight to the earliest recurrence strictly after `target`
-            // (intermediate empty wakeups emit nothing).
-            std::int64_t delta = target - entry.due_minute;
-            std::int64_t jumps = (delta / rec.period_minutes) + 1;
-            std::int64_t next_due = entry.due_minute + jumps * rec.period_minutes;
-            scheduler_.push(ScheduledEntry{next_due, entry.sub_id});
+            scheduler_.push(ScheduledEntry{entry.due_minute + rec.period_minutes, entry.sub_id});
         }
 
         now_minutes_ = target;

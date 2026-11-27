@@ -88,15 +88,15 @@ TEST_CASE("inbox retains only last K alerts while history keeps all") {
         "INBOX alice\n"
         "HISTORY alice\n";
     std::string out = run_script(script, 2, false);
-    CHECK(out.find("ALERT D0 00:00 alice news m1\nALERT D0 00:00 alice news m2\nALERT D0 00:00 alice news m3\n"
-                   "ALERT D0 00:00 alice news m2\nALERT D0 00:00 alice news m3\nEND\n") != std::string::npos);
-    CHECK(out.find("D0 00:00 SUB news\n"
-                   "D0 00:00 ALERT news m1\n"
-                   "D0 00:00 ALERT news m2\n"
-                   "D0 00:00 ALERT news m3\nEND\n") != std::string::npos);
+    CHECK(out.find("ALERT D1 00:00 alice news m1\nALERT D1 00:00 alice news m2\nALERT D1 00:00 alice news m3\n"
+                   "ALERT D1 00:00 alice news m2\nALERT D1 00:00 alice news m3\nEND\n") != std::string::npos);
+    CHECK(out.find("D1 00:00 SUB news\n"
+                   "D1 00:00 ALERT news m1\n"
+                   "D1 00:00 ALERT news m2\n"
+                   "D1 00:00 ALERT news m3\nEND\n") != std::string::npos);
 }
 
-TEST_CASE("price alerts fire highest threshold first and re-arm after rising") {
+TEST_CASE("price alerts fire highest threshold first and are removed") {
     const std::string script =
         "SUB u1 items/a below 500.00\n"
         "SUB u2 items/a below 600.00\n"
@@ -109,9 +109,8 @@ TEST_CASE("price alerts fire highest threshold first and re-arm after rising") {
     const std::string expected =
         "OK SUB u1 items/a\n"
         "OK SUB u2 items/a\n"
-        "ALERT D0 00:00 u2 items/a price 450.00 below 600.00\n"
-        "ALERT D0 00:00 u1 items/a price 450.00 below 500.00\n"
-        "ALERT D0 00:00 u1 items/a price 499.99 below 500.00\n";
+        "ALERT D1 00:00 u2 items/a price 450.00 below 600.00\n"
+        "ALERT D1 00:00 u1 items/a price 450.00 below 500.00\n";
     CHECK(out == expected);
 }
 
@@ -128,10 +127,10 @@ TEST_CASE("unsub discards held publications and resubscribe uses fresh id") {
     const std::string expected =
         "OK SUB dave news\n"
         "OK UNSUB dave news\n"
-        "TIME D0 02:00\n"
+        "TIME D1 02:00\n"
         "OK SUB dave news\n"
-        "ALERT D0 04:00 dave news msg2\n"
-        "TIME D0 04:00\n";
+        "ALERT D1 04:00 dave news msg2\n"
+        "TIME D1 04:00\n";
     CHECK(out == expected);
 }
 
@@ -146,9 +145,9 @@ TEST_CASE("topic prefix respects slash boundaries and most-specific mode wins") 
     const std::string expected =
         "OK SUB bob news\n"
         "OK SUB bob news/sports\n"
-        "ALERT D0 00:00 bob news/sportscar Fast car\n"
-        "ALERT D0 08:00 bob news/sports/soccer Match\n"
-        "TIME D0 08:00\n";
+        "ALERT D1 00:00 bob news/sportscar Fast car\n"
+        "ALERT D1 08:00 bob news/sports/soccer Match\n"
+        "TIME D1 08:00\n";
     CHECK(out == expected);
 }
 
@@ -245,7 +244,7 @@ TEST_CASE("invalid commands report errors without mutating state") {
         "ERROR not subscribed ghost news\n"
         "END\n"
         "END\n"
-        "TIME D0 00:00\n";
+        "TIME D1 00:00\n";
     CHECK(out.str() == expected);
     CHECK(svc.now_minutes() == 0);
 }
@@ -269,23 +268,44 @@ TEST_CASE("scheduled boundary rules: at current time waits for tomorrow, same-mi
     svc.run_stream(in, out);
 
     const std::string expected =
-        "TIME D0 08:00\n"
+        "TIME D1 08:00\n"
         "OK SUB alice news\n"
         "OK SUB bob news\n"
         "OK SUB carol news\n"
-        "ALERT D0 10:00 bob news first\n"
-        "ALERT D0 10:00 carol news first\n"
-        "TIME D0 10:00\n"
-        "ALERT D0 12:00 bob news after_fire\n"
-        "ALERT D0 12:00 carol news after_fire\n"
-        "ALERT D1 08:00 alice news first\n"
-        "ALERT D1 08:00 alice news after_fire\n"
+        "ALERT D1 10:00 bob news first\n"
+        "ALERT D1 10:00 carol news first\n"
         "TIME D1 10:00\n"
+        "ALERT D1 12:00 bob news after_fire\n"
+        "ALERT D1 12:00 carol news after_fire\n"
+        "ALERT D2 08:00 alice news first\n"
+        "ALERT D2 08:00 alice news after_fire\n"
+        "TIME D2 10:00\n"
         "END\n"
         "END\n"
-        "D0 08:00 SUB news every 2\n"
-        "D0 10:00 ALERT news first\n"
-        "D0 12:00 ALERT news after_fire\n"
+        "D1 08:00 SUB news every 2\n"
+        "D1 10:00 ALERT news first\n"
+        "D1 12:00 ALERT news after_fire\n"
         "END\n";
     CHECK(out.str() == expected);
+}
+
+TEST_CASE("replacement cancels pending delivery and selects new mode") {
+    auto out = run_script("SUB alice news every 2\nPUB news old\nSUB alice news\nPUB news new\nTICK 120\n");
+    CHECK(out == "OK SUB alice news\nOK SUB alice news\nALERT D1 00:00 alice news new\nTIME D1 02:00\n");
+}
+
+TEST_CASE("equal deadlines follow scheduling order") {
+    auto out = run_script("SUB a news every 2\nTICK 60\nSUB b news every 3\nTICK 60\nPUB news message\nTICK 120\n");
+    CHECK(out.find("ALERT D1 04:00 b news message\nALERT D1 04:00 a news message\n") != std::string::npos);
+}
+
+TEST_CASE("topic removal uses an index and preserves moved subscriptions") {
+    team::StlTopicStore<> topics;
+    for (std::uint64_t i = 0; i < 10000; ++i) topics.add_subscription("news", i);
+    topics.reset_stats();
+    CHECK(topics.remove_subscription("news", 9998));
+    CHECK(topics.stats().visits < 10);
+    CHECK(topics.remove_subscription("news", 9999));
+    CHECK_FALSE(topics.remove_subscription("news", 9998));
+    CHECK(topics.subscriber_count() == 9998);
 }
